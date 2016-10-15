@@ -196,6 +196,15 @@ namespace MpegTS
             if (!IsValid)//we don't have a PES start code!
                 return false;
 
+            //let's do proper clean up... 
+            using (var ms = new System.IO.MemoryStream(buffer))//try to get an estimate of the size needed to avoid re-sizing
+                WriteToStream( ms);
+
+            return true;
+        }
+        Queue<TsPacket> tmpQ;
+        internal void WriteToStream(System.IO.Stream outStream)
+        {
             int startOfPayload = PayloadStart;//get this now, so we don't try to access the queue later.
 
             //start with this packet's payload len...
@@ -203,52 +212,46 @@ namespace MpegTS
             //int vidLen = firstLen;
             TsPacket p;
 
-            //let's do proper clean up... 
-            using (var ms = new System.IO.MemoryStream(buffer))//try to get an estimate of the size needed to avoid re-sizing
+            //create a tmp que to stuff the packets back into so we don't lose them
+            if(tmpQ == null)
+                tmpQ = new Queue<TsPacket>(packets.Count);
+
+            bool start = true;
+            //get total byte count for reassembled PES
+            while (packets.Count > 0)
             {
+                tmpQ.Enqueue(p = packets.Dequeue());//hang onto the ref
 
-                //create a tmp que to stuff the packets back into so we don't lose them
-                Queue<TsPacket> tmpQ = new Queue<TsPacket>(packets.Count);
+                //vidLen += p.data.Length - p.PayloadStart;
 
-                bool start = true;
-                //get total byte count for reassembled PES
-                while (packets.Count > 0)
+                //get a memoryStream to the payload
+                using (var s = p.GetPayload())
                 {
-                    tmpQ.Enqueue(p = packets.Dequeue());//hang onto the ref
-
-                    //vidLen += p.data.Length - p.PayloadStart;
-
-                    //get a memoryStream to the payload
-                    using (var s = p.GetPayload())
+                    if (!start)
                     {
-                        if (!start)
-                        {
-                            //if (packets.Count > 0)
-                            s.CopyTo(ms);//no PES header stuff in following packets
-                                         //else//need to trim trailing 0's
-                                         //{
-                                         //    using (var s2 = p.GetPayload(false))
-                                         //        s2.CopyTo(ms);
-                                         //}
-                        }
-                        else//first packet
-                        {
-                            s.Position = startOfPayload;//move past the header/start bytes
-
-                            s.CopyTo(ms);
-                        }
+                        //if (packets.Count > 0)
+                        s.CopyTo(outStream);//no PES header stuff in following packets
+                                     //else//need to trim trailing 0's
+                                     //{
+                                     //    using (var s2 = p.GetPayload(false))
+                                     //        s2.CopyTo(ms);
+                                     //}
                     }
+                    else//first packet
+                    {
+                        s.Position = startOfPayload;//move past the header/start bytes
 
-                    start = false;
+                        s.CopyTo(outStream);
+                    }
                 }
 
-                //swap queue's
-                var tq = packets;
-                packets = tmpQ;
-                tmpQ = tq;
+                start = false;
+            }
 
-                return true;
-            }//end using block, dispose the stream
+            //swap queue's
+            var q = packets;
+            packets = tmpQ;
+            tmpQ = q;
         }
     }
 }

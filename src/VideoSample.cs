@@ -12,14 +12,12 @@ namespace MpegTS
     /// </summary>
     public class VideoSample
     {
-        public byte[] Buffer { get; internal set; }
+        private byte[] b;
+        public byte[] Buffer { get { return b; } internal set { Length = (value != null)? (b = value).Length : 0; } }
 
         public long PresentationTimeStamp { get; internal set; }
 
-        public int Length
-        {
-            get { return Buffer.Length; }
-        }
+        public int Length { get; internal set; }
 
         //**TODO: we **could make some sort of buffer recycling mech here to reduce GC
     }

@@ -94,14 +94,6 @@ namespace MpegTS
         /// <returns>byte[].Lenth may =0 if called when internal queue is empty</returns>
         public VideoSample DequeueNextSample()
         {
-            //int c;
-            //lock(outBuffers)
-            //{
-            //    c = outBuffers.Count;
-            //}
-            //Task.Run(() => Debug.WriteLine("buffers ready count: " + c));
-
-
             PacketizedElementaryStream pes = DequeueNextPacket();
 
             var sample = new VideoSample();
@@ -130,9 +122,7 @@ namespace MpegTS
                         var returnedBuffers = pes.GetBuffers();
 
                         foreach (var buffer in returnedBuffers)
-                        {
                             bufferPool.Push(buffer);
-                        }
                     }
                 }
             }
@@ -142,11 +132,37 @@ namespace MpegTS
             return sample;
         }
 
+        /// <summary>
+        /// Write the next sample to an output stream.<para/>
+        /// the returned <see cref="VideoSample.Length"/> = # of bytes writen to outStream
+        /// </summary>
+        /// <param name="outStream"></param>
+        /// <returns><see cref="VideoSample.Length"/> = # of bytes writen to outStream</returns>
+        public VideoSample DequeueNextSample(System.IO.Stream outStream)
+        {
+            var sample = new VideoSample();
+            PacketizedElementaryStream pes = DequeueNextPacket();
+
+            if (pes != null)
+            {
+                long cursor = outStream.Position;
+
+                pes.WriteToStream(outStream);
+
+                if (pes.HasPts)
+                    sample.PresentationTimeStamp = pes.PTS;
+
+                sample.Length = (int)(outStream.Position - cursor);
+            }
+
+            return sample;
+        }
+
         private byte[] GetLargeBuffer(int v)
         {
             lock (largeBufferPool)
             {
-                var ret = (from b in largeBufferPool where b.Length >= v select b).FirstOrDefault();
+                var ret = largeBufferPool.FirstOrDefault(b => b.Length >= v);
 
                 if (ret == null)
                 {
