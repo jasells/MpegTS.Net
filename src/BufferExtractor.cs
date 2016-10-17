@@ -132,27 +132,36 @@ namespace MpegTS
             return sample;
         }
 
+        public VideoSample DequeueNextSample(bool autoCreateBuffer = true)
+        {
+            if (autoCreateBuffer)
+                return DequeueNextSample();
+            else
+                return DequeueNextSample(null);
+        }
+
         /// <summary>
         /// Write the next sample to an output stream.<para/>
         /// the returned <see cref="VideoSample.Length"/> = # of bytes writen to outStream
         /// </summary>
         /// <param name="outStream"></param>
         /// <returns><see cref="VideoSample.Length"/> = # of bytes writen to outStream</returns>
-        public VideoSample DequeueNextSample(System.IO.Stream outStream)
+        private VideoSample DequeueNextSample(System.IO.Stream outStream)
         {
             var sample = new VideoSample();
             PacketizedElementaryStream pes = DequeueNextPacket();
 
             if (pes != null)
             {
-                long cursor = outStream.Position;
+                //long cursor = outStream.Position;
 
-                pes.WriteToStream(outStream);
+                //pes.WriteToStream(outStream);
 
                 if (pes.HasPts)
                     sample.PresentationTimeStamp = pes.PTS;
 
-                sample.Length = (int)(outStream.Position - cursor);
+
+                sample.Pes = pes;// (int)(outStream.Position - cursor);
             }
 
             return sample;

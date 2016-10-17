@@ -112,10 +112,12 @@ namespace MpegTS
 
             lastCC = next.ContinuityCounter;
         }
-
+        //this is a safe size to use to estimate a buffer len to hold all child TsPackets
+        const int packLen = TsPacket.PacketLength - 4;//each Ts packet has *at least* 4 bytes of TsHeader.
         internal int EstimateBufferSize()
         {
-            return packets.Count * packets.First().data.data.Count();
+            //each Ts packet has *at least* 4 bytes of TsHeader.
+            return packets.Count * packLen;
         }
 
         internal List<byte[]> GetBuffers()

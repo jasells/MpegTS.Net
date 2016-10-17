@@ -19,6 +19,23 @@ namespace MpegTS
 
         public int Length { get; internal set; }
 
-        //**TODO: we **could make some sort of buffer recycling mech here to reduce GC
+        private PacketizedElementaryStream myPes;
+        internal PacketizedElementaryStream Pes
+        {
+            get { return myPes; }
+            set { myPes = value; Length = myPes.EstimateBufferSize(); }
+        }
+
+        //public int SafeBufferLen { get { return Pes.EstimateBufferSize(); } }
+
+        public void WriteToStream(System.IO.Stream outStream)
+        {
+            if (Pes != null)
+                Pes.WriteToStream(outStream);
+            else
+                outStream.Write(b, 0, Length);
+        }
+
+        internal VideoSample() { }
     }
 }
