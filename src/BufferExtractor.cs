@@ -49,7 +49,7 @@ namespace MpegTS
 
         public int SampleCount
         {
-            get; private set;
+            get { lock (outBuffers) {return outBuffers.Count; } }
         }
 
         /// <summary>
@@ -148,23 +148,27 @@ namespace MpegTS
         /// <returns><see cref="VideoSample.Length"/> = # of bytes writen to outStream</returns>
         private VideoSample DequeueNextSample(System.IO.Stream outStream)
         {
-            var sample = new VideoSample();
-            PacketizedElementaryStream pes = DequeueNextPacket();
-
-            if (pes != null)
+            lock (outBuffers)
             {
-                //long cursor = outStream.Position;
+                VideoSample sample = null;
+                PacketizedElementaryStream pes = DequeueNextPacket();
 
-                //pes.WriteToStream(outStream);
+                if (pes != null)
+                {
+                    sample = new VideoSample();
+                    //long cursor = outStream.Position;
 
-                if (pes.HasPts)
-                    sample.PresentationTimeStamp = pes.PTS;
+                    //pes.WriteToStream(outStream);
+
+                    if (pes.HasPts)
+                        sample.PresentationTimeStamp = pes.PTS;
 
 
-                sample.Pes = pes;// (int)(outStream.Position - cursor);
+                    sample.Pes = pes;// (int)(outStream.Position - cursor);
+                }
+
+                return sample;
             }
-
-            return sample;
         }
 
         private byte[] GetLargeBuffer(int v)
@@ -198,18 +202,19 @@ namespace MpegTS
 
         private PacketizedElementaryStream DequeueNextPacket()
         {
-            PacketizedElementaryStream pes = null;
 
             lock (outBuffers)
             {
+                PacketizedElementaryStream pes = null;
+
                 if (outBuffers.Count > 0)
                 {
                     pes = outBuffers.Dequeue();
-                    SampleCount = outBuffers.Count;
+                    //SampleCount = outBuffers.Count;
                 }
-            }
 
-            return pes;
+                return pes;
+            }
         }
 
         private Stack<byte[]> bufferPool = new Stack<byte[]>();
@@ -289,7 +294,7 @@ namespace MpegTS
                     lock (outBuffers)
                     {
                         outBuffers.Enqueue(pes);
-                        SampleCount = outBuffers.Count;
+                        //SampleCount = outBuffers.Count;
                     }
 
                     long pts = 0;
