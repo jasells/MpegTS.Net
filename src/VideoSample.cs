@@ -36,6 +36,17 @@ namespace MpegTS
                 outStream.Write(b, 0, Length);
         }
 
+        public bool IsComplete
+        {
+            get
+            {
+                if (myPes != null)
+                    return myPes.IsComplete;
+                else
+                    return false;
+            }
+        }
+
         internal VideoSample() { }
     }
 }

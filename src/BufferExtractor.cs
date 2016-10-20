@@ -148,7 +148,7 @@ namespace MpegTS
         /// <returns><see cref="VideoSample.Length"/> = # of bytes writen to outStream</returns>
         private VideoSample DequeueNextSample(System.IO.Stream outStream)
         {
-            lock (outBuffers)
+            //lock (outBuffers)
             {
                 VideoSample sample = null;
                 PacketizedElementaryStream pes = DequeueNextPacket();
