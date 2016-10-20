@@ -12,15 +12,41 @@ namespace MpegTS
     /// </summary>
     public class VideoSample
     {
-        public byte[] Buffer { get; internal set; }
+        private byte[] b;
+        public byte[] Buffer { get { return b; } internal set { Length = (value != null)? (b = value).Length : 0; } }
 
         public long PresentationTimeStamp { get; internal set; }
 
-        public int Length
+        public int Length { get; internal set; }
+
+        private PacketizedElementaryStream myPes;
+        internal PacketizedElementaryStream Pes
         {
-            get { return Buffer.Length; }
+            get { return myPes; }
+            set { myPes = value; Length = myPes.EstimateBufferSize(); }
         }
 
-        //**TODO: we **could make some sort of buffer recycling mech here to reduce GC
+        //public int SafeBufferLen { get { return Pes.EstimateBufferSize(); } }
+
+        public void WriteToStream(System.IO.Stream outStream)
+        {
+            if (Pes != null)
+                Pes.WriteToStream(outStream);
+            else
+                outStream.Write(b, 0, Length);
+        }
+
+        public bool IsComplete
+        {
+            get
+            {
+                if (myPes != null)
+                    return myPes.IsComplete;
+                else
+                    return false;
+            }
+        }
+
+        internal VideoSample() { }
     }
 }

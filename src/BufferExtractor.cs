@@ -49,7 +49,7 @@ namespace MpegTS
 
         public int SampleCount
         {
-            get; private set;
+            get { lock (outBuffers) {return outBuffers.Count; } }
         }
 
         /// <summary>
@@ -94,14 +94,6 @@ namespace MpegTS
         /// <returns>byte[].Lenth may =0 if called when internal queue is empty</returns>
         public VideoSample DequeueNextSample()
         {
-            //int c;
-            //lock(outBuffers)
-            //{
-            //    c = outBuffers.Count;
-            //}
-            //Task.Run(() => Debug.WriteLine("buffers ready count: " + c));
-
-
             PacketizedElementaryStream pes = DequeueNextPacket();
 
             var sample = new VideoSample();
@@ -130,9 +122,7 @@ namespace MpegTS
                         var returnedBuffers = pes.GetBuffers();
 
                         foreach (var buffer in returnedBuffers)
-                        {
                             bufferPool.Push(buffer);
-                        }
                     }
                 }
             }
@@ -142,11 +132,50 @@ namespace MpegTS
             return sample;
         }
 
+        public VideoSample DequeueNextSample(bool autoCreateBuffer = true)
+        {
+            if (autoCreateBuffer)
+                return DequeueNextSample();
+            else
+                return DequeueNextSample(null);
+        }
+
+        /// <summary>
+        /// Write the next sample to an output stream.<para/>
+        /// the returned <see cref="VideoSample.Length"/> = # of bytes writen to outStream
+        /// </summary>
+        /// <param name="outStream"></param>
+        /// <returns><see cref="VideoSample.Length"/> = # of bytes writen to outStream</returns>
+        private VideoSample DequeueNextSample(System.IO.Stream outStream)
+        {
+            //lock (outBuffers)
+            {
+                VideoSample sample = null;
+                PacketizedElementaryStream pes = DequeueNextPacket();
+
+                if (pes != null)
+                {
+                    sample = new VideoSample();
+                    //long cursor = outStream.Position;
+
+                    //pes.WriteToStream(outStream);
+
+                    if (pes.HasPts)
+                        sample.PresentationTimeStamp = pes.PTS;
+
+
+                    sample.Pes = pes;// (int)(outStream.Position - cursor);
+                }
+
+                return sample;
+            }
+        }
+
         private byte[] GetLargeBuffer(int v)
         {
             lock (largeBufferPool)
             {
-                var ret = (from b in largeBufferPool where b.Length >= v select b).FirstOrDefault();
+                var ret = largeBufferPool.FirstOrDefault(b => b.Length >= v);
 
                 if (ret == null)
                 {
@@ -173,18 +202,19 @@ namespace MpegTS
 
         private PacketizedElementaryStream DequeueNextPacket()
         {
-            PacketizedElementaryStream pes = null;
 
             lock (outBuffers)
             {
+                PacketizedElementaryStream pes = null;
+
                 if (outBuffers.Count > 0)
                 {
                     pes = outBuffers.Dequeue();
-                    SampleCount = outBuffers.Count;
+                    //SampleCount = outBuffers.Count;
                 }
-            }
 
-            return pes;
+                return pes;
+            }
         }
 
         private Stack<byte[]> bufferPool = new Stack<byte[]>();
@@ -264,7 +294,7 @@ namespace MpegTS
                     lock (outBuffers)
                     {
                         outBuffers.Enqueue(pes);
-                        SampleCount = outBuffers.Count;
+                        //SampleCount = outBuffers.Count;
                     }
 
                     long pts = 0;

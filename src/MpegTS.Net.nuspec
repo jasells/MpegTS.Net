@@ -1,0 +1,31 @@
+﻿<?xml version="1.0"?>
+<package>
+  <metadata>
+    <!--*-->
+    <id>$id$</id>
+    <!--*-->
+    <version>$version$</version>
+    <title>$title$</title>
+    <!--*-->
+    <authors>JASells</authors>
+    <owners>JASells</owners>
+<!--
+    <licenseUrl></licenseUrl>-->
+    <projectUrl>https://github.com/jasells/MpegTS.Net</projectUrl>
+    <iconUrl>https://nuget.org/Content/Images/packageDefaultIcon-50x50.png</iconUrl>
+
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <!--*-->
+    <description>PCL Mpeg TS parsing lib</description>
+    <!--*-->
+    <releaseNotes>inital release</releaseNotes>
+    <copyright></copyright>
+    <tags>Video Media Mpeg MpegTS H.264 </tags>
+    <dependencies>      </dependencies>
+    
+  </metadata>
+    <files>
+      <!--<file src="bin\release\MpegTS.NET.dll" target="lib\portable-win+net45+wp8+wpa81+win8+MonoAndroid10+MonoTouch10+Xamarin.iOS10" />-->
+      <file src="bin\release\MpegTS.NET.pdb" target="lib\portable45-net45+win8+wpa81" />
+    </files>
+</package>
