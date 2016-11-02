@@ -18,7 +18,10 @@
     <!--*-->
     <description>PCL Mpeg TS parsing lib</description>
     <!--*-->
-    <releaseNotes>inital release</releaseNotes>
+    <releaseNotes>-Added support for output to stream.  
+                  -Improved memory management.
+                  -Video samples now Impl IDisposable.
+    </releaseNotes>
     <copyright></copyright>
     <tags>Video Media Mpeg MpegTS H.264 </tags>
     <dependencies>      </dependencies>

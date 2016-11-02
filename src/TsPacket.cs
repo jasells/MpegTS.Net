@@ -46,6 +46,11 @@ namespace MpegTS
         internal protected TsChunk data;
 
         /// <summary>
+        /// this is the internal buffer, write raw data to this.
+        /// </summary>
+        public byte[] Buffer { get { return data.data; } }
+
+        /// <summary>
         /// the start/sync byte for MpegTS packets.
         /// </summary>
         public const byte SyncByte = 0x47;

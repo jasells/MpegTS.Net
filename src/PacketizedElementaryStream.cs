@@ -12,7 +12,7 @@ namespace MpegTS
     /// 
     /// https://en.wikipedia.org/wiki/Packetized_elementary_stream
     /// </summary>
-    public class PacketizedElementaryStream
+    public class PacketizedElementaryStream:IDisposable
     {
         /// <summary>
         /// look this value after the AdaptationField in the stream to 
@@ -29,7 +29,11 @@ namespace MpegTS
         //    return val;
         //}
 
-        private Queue<TsPacket> packets;
+        internal Queue<TsPacket> packets;
+        /// <summary>
+        /// manages buffers for us
+        /// </summary>
+        private BufferExtractor myExtractor;
 
         private ushort ExtensionLen
         {
@@ -81,8 +85,13 @@ namespace MpegTS
             }
         }
 
-        public PacketizedElementaryStream(TsPacket first)
+        public PacketizedElementaryStream(BufferExtractor extractor, TsPacket first)
         {
+            if (extractor == null || first == null)
+                throw new ArgumentNullException("extractor or first", "no ctor parameters may be null");
+
+            myExtractor = extractor;
+
             IsComplete = true;//we assume it is complete until we prove it is not
 
             packets = new Queue<TsPacket>(4);
@@ -205,9 +214,11 @@ namespace MpegTS
             return true;
         }
         Queue<TsPacket> tmpQ;
-        internal void WriteToStream(System.IO.Stream outStream)
+        internal uint WriteToStream(System.IO.Stream outStream)
         {
             int startOfPayload = PayloadStart;//get this now, so we don't try to access the queue later.
+
+            uint startPos = (uint)outStream.Position;
 
             //start with this packet's payload len...
             int firstLen = PesLen - startOfPayload;//-startcode/prefix(4) -header(5byte, usually)
@@ -254,6 +265,53 @@ namespace MpegTS
             var q = packets;
             packets = tmpQ;
             tmpQ = q;
+
+            return (uint)outStream.Position - startPos;
         }
+
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects).
+                    //recycle all mem buffs here
+                    myExtractor.RecyclePES(this);
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // TODO: set large fields to null.
+
+                disposedValue = true;
+            }
+        }
+
+        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
+        // ~PacketizedElementaryStream() {
+        //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+        //   Dispose(false);
+        // }
+
+        internal void Dispose(byte[] largeBuff)
+        {
+            if(largeBuff != null)
+                myExtractor.ReturnLargeBuffer(largeBuff);
+
+            Dispose(true);
+        }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            // GC.SuppressFinalize(this);
+        }
+        #endregion
     }
 }
