@@ -29,7 +29,7 @@ namespace MpegTS
         //    return val;
         //}
 
-        private Queue<TsPacket> packets;
+        internal Queue<TsPacket> packets;
         /// <summary>
         /// manages buffers for us
         /// </summary>

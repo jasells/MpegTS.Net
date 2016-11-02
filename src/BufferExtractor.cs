@@ -114,17 +114,18 @@ namespace MpegTS
                 if (pes.HasPts)
                     sample.PresentationTimeStamp = pes.PTS;
 
-                // reclaim buffers
-                if (usePool)
-                {
-                    lock (bufferPool)
-                    {
-                        var returnedBuffers = pes.GetBuffers();
+                //this is now handled in pes.Dispose() !
+                //// reclaim buffers
+                //if (usePool)
+                //{
+                //    lock (bufferPool)
+                //    {
+                //        var returnedBuffers = pes.GetBuffers();
 
-                        foreach (var buffer in returnedBuffers)
-                            bufferPool.Push(buffer);
-                    }
-                }
+                //        foreach (var buffer in returnedBuffers)
+                //            bufferPool.Push(buffer);
+                //    }
+                //}
             }
 
             sample.Buffer = gotPayload ? buff : null;
@@ -217,56 +218,35 @@ namespace MpegTS
             }
         }
 
-        private Stack<byte[]> bufferPool = new Stack<byte[]>();
+        private Stack<TsPacket> bufferPool = new Stack<TsPacket>();
         private List<byte[]> largeBufferPool = new List<byte[]>();
 
         /// <summary>
         /// returns a pooled buffer of length 188 bytes
         /// </summary>
         /// <returns></returns>
-        public byte[] GetBuffer()
+        public TsPacket GetBuffer()
         {
-            byte[] ret = null;
+            TsPacket ret = null;
 
             if (usePool)
             {
                 lock (bufferPool)
                 {
                     if (bufferPool.Count() == 0)
-                        ret = new byte[188];
+                        ret = new TsPacket( new byte[TsPacket.PacketLength]);
                     else
                         ret = bufferPool.Pop();
                 }
             }
             else
             {
-                ret = new byte[188];
+                ret = new TsPacket(new byte[TsPacket.PacketLength]);
             }
 
             return ret;
         }
 
-        //public TsPacket GetPacket()
-        //{
-        //    byte[] ret = null;
-
-        //    if (usePool)
-        //    {
-        //        lock (bufferPool)
-        //        {
-        //            if (bufferPool.Count() == 0)
-        //                ret = new byte[188];
-        //            else
-        //                ret = bufferPool.Pop();
-        //        }
-        //    }
-        //    else
-        //    {
-        //        ret = new byte[188];
-        //    }
-
-        //    return ret;
-        //}
 
         /// <summary>
         /// to push new raw data from any source, pass the data in here
@@ -290,7 +270,7 @@ namespace MpegTS
             if (!ts.IsValid)
             {
                 // reclaim buffer
-                if (ts.data.Length == 188) RecycleSmallBuffer(ts.data.data);
+                if (ts.data.Length == TsPacket.PacketLength) RecycleSmallBuffer(ts);
 
                 return false;//not valid TS packet!
             }
@@ -298,12 +278,12 @@ namespace MpegTS
             return AddTsPacket(ts);
         }
 
-        private void RecycleSmallBuffer(byte[] data)
+        private void RecycleSmallBuffer(TsPacket data)
         {
             lock(bufferPool) bufferPool.Push(data);
         }
 
-        private void RecycleSmallBuffer(IEnumerable< byte[]> data)
+        private void RecycleSmallBuffer(IEnumerable< TsPacket> data)
         {
             //TODO: could we check here for some max size of the bufferPool to not get too big?
             lock (bufferPool)
@@ -315,7 +295,8 @@ namespace MpegTS
 
         internal void RecyclePES(PacketizedElementaryStream pes)
         {
-            RecycleSmallBuffer(pes.GetBuffers());
+            RecycleSmallBuffer(pes.packets);
+            pes.packets.Clear();
         }
 
         private bool AddTsPacket(TsPacket ts)
@@ -324,7 +305,7 @@ namespace MpegTS
             {
                 CheckCustomPIDs(ts);
                 // reclaim buffer
-                bufferPool.Push(ts.data.data);
+                bufferPool.Push(ts);
 
                 return true;//not video, so ignore it for now, it is a valid packet.
             }
