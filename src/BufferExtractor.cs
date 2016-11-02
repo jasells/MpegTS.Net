@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -34,6 +35,9 @@ namespace MpegTS
         //
         public int Bad { get { return bad; } }
 
+
+        private ConcurrentStack<TsPacket> bufferPool = new ConcurrentStack<TsPacket>();
+        private List<byte[]> largeBufferPool = new List<byte[]>();
 
         //this may need to be concurrent queue?
         protected Queue<PacketizedElementaryStream> outBuffers = new Queue<PacketizedElementaryStream>();
@@ -218,9 +222,6 @@ namespace MpegTS
             }
         }
 
-        private Stack<TsPacket> bufferPool = new Stack<TsPacket>();
-        private List<byte[]> largeBufferPool = new List<byte[]>();
-
         /// <summary>
         /// returns a pooled buffer of length 188 bytes
         /// </summary>
@@ -231,13 +232,18 @@ namespace MpegTS
 
             if (usePool)
             {
-                lock (bufferPool)
-                {
-                    if (bufferPool.Count() == 0)
-                        ret = new TsPacket( new byte[TsPacket.PacketLength]);
-                    else
-                        ret = bufferPool.Pop();
-                }
+                if (bufferPool.Count > 0)
+                    bufferPool.TryPop(out ret);
+
+                if(ret == null)
+                    ret = new TsPacket(new byte[TsPacket.PacketLength]);
+                //lock (bufferPool)
+                //{
+                //    if (bufferPool.Count() == 0)
+                //        ret = new TsPacket( new byte[TsPacket.PacketLength]);
+                //    else
+                //        ret = bufferPool.Pop();
+                //}
             }
             else
             {
@@ -280,13 +286,14 @@ namespace MpegTS
 
         private void RecycleSmallBuffer(TsPacket data)
         {
-            lock(bufferPool) bufferPool.Push(data);
+            //lock(bufferPool)
+                bufferPool.Push(data);
         }
 
         private void RecycleSmallBuffer(IEnumerable< TsPacket> data)
         {
             //TODO: could we check here for some max size of the bufferPool to not get too big?
-            lock (bufferPool)
+            //lock (bufferPool)
             {
                 foreach(var b in data)
                     bufferPool.Push(b);
