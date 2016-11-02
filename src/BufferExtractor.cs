@@ -35,25 +35,20 @@ namespace MpegTS
         //
         public int Bad { get { return bad; } }
 
-
+        //concurrent collections do seem to improve performance
         private ConcurrentStack<TsPacket> bufferPool = new ConcurrentStack<TsPacket>();
         private List<byte[]> largeBufferPool = new List<byte[]>();
 
-        //this may need to be concurrent queue?
-        protected Queue<PacketizedElementaryStream> outBuffers = new Queue<PacketizedElementaryStream>();
+        //concurrent collections do seem to improve performance
+        protected ConcurrentQueue<PacketizedElementaryStream> outBuffers = new ConcurrentQueue<PacketizedElementaryStream>();
 
         public MpegTS.PacketizedElementaryStream pes;
 
-        //protected MpegTS.TsPacket ts;
-
-        public BufferExtractor():base()
-        {
-            //ts = new TsPacket(null);
-        }
+        public BufferExtractor() : base() { }
 
         public int SampleCount
         {
-            get { lock (outBuffers) {return outBuffers.Count; } }
+            get {  {return outBuffers.Count; } }
         }
 
         /// <summary>
@@ -62,8 +57,6 @@ namespace MpegTS
         /// </summary>
         public event SampleReadyCallback SampleReady;
 
-        private Task lastSampleRendered;
-
         protected async void OnSampleReady(int count, long pts)
         {
             var del = SampleReady;//get the CB delegate
@@ -71,8 +64,8 @@ namespace MpegTS
             if (del != null)
                 try
                 {
-                    if (lastSampleRendered != null)
-                        await lastSampleRendered.ConfigureAwait(false) ;
+                    //if (lastSampleRendered != null)
+                    //    await lastSampleRendered.ConfigureAwait(false) ;
 
                     if (count > 0)
                     {
@@ -153,27 +146,24 @@ namespace MpegTS
         /// <returns><see cref="VideoSample.Length"/> = # of bytes writen to outStream</returns>
         private VideoSample DequeueNextSample(System.IO.Stream outStream)
         {
-            //lock (outBuffers)
+            VideoSample sample = null;
+            PacketizedElementaryStream pes = DequeueNextPacket();
+
+            if (pes != null)
             {
-                VideoSample sample = null;
-                PacketizedElementaryStream pes = DequeueNextPacket();
+                sample = new VideoSample();
+                //long cursor = outStream.Position;
 
-                if (pes != null)
-                {
-                    sample = new VideoSample();
-                    //long cursor = outStream.Position;
+                //pes.WriteToStream(outStream);
 
-                    //pes.WriteToStream(outStream);
-
-                    if (pes.HasPts)
-                        sample.PresentationTimeStamp = pes.PTS;
+                if (pes.HasPts)
+                    sample.PresentationTimeStamp = pes.PTS;
 
 
-                    sample.Pes = pes;// (int)(outStream.Position - cursor);
-                }
-
-                return sample;
+                sample.Pes = pes;// (int)(outStream.Position - cursor);
             }
+
+            return sample;
         }
 
         private byte[] GetLargeBuffer(int v)
@@ -203,23 +193,13 @@ namespace MpegTS
             }
         }
 
-        private bool usePool = true;
-
         private PacketizedElementaryStream DequeueNextPacket()
         {
+            PacketizedElementaryStream pes = null;
 
-            lock (outBuffers)
-            {
-                PacketizedElementaryStream pes = null;
+            outBuffers.TryDequeue(out pes);
 
-                if (outBuffers.Count > 0)
-                {
-                    pes = outBuffers.Dequeue();
-                    //SampleCount = outBuffers.Count;
-                }
-
-                return pes;
-            }
+            return pes;
         }
 
         /// <summary>
@@ -230,25 +210,11 @@ namespace MpegTS
         {
             TsPacket ret = null;
 
-            if (usePool)
-            {
-                if (bufferPool.Count > 0)
-                    bufferPool.TryPop(out ret);
+            if (bufferPool.Count > 0)
+                bufferPool.TryPop(out ret);
 
-                if(ret == null)
-                    ret = new TsPacket(new byte[TsPacket.PacketLength]);
-                //lock (bufferPool)
-                //{
-                //    if (bufferPool.Count() == 0)
-                //        ret = new TsPacket( new byte[TsPacket.PacketLength]);
-                //    else
-                //        ret = bufferPool.Pop();
-                //}
-            }
-            else
-            {
+            if (ret == null)
                 ret = new TsPacket(new byte[TsPacket.PacketLength]);
-            }
 
             return ret;
         }
@@ -260,12 +226,7 @@ namespace MpegTS
         /// <param name="data"></param>
         public bool AddRaw(byte[] data)
         {
-            if (data == null)
-            {
-                // reclaim buffer
-                //RecycleSmallBuffer(data);
-                return false;
-            }
+            if (data == null) return false;
 
             return AddPacket(new TsPacket(data));
         }
@@ -276,7 +237,7 @@ namespace MpegTS
             if (!ts.IsValid)
             {
                 // reclaim buffer
-                if (ts.data.Length == TsPacket.PacketLength) RecycleSmallBuffer(ts);
+                if (ts.data.Length == TsPacket.PacketLength) bufferPool.Push(ts);
 
                 return false;//not valid TS packet!
             }
@@ -284,20 +245,11 @@ namespace MpegTS
             return AddTsPacket(ts);
         }
 
-        private void RecycleSmallBuffer(TsPacket data)
-        {
-            //lock(bufferPool)
-                bufferPool.Push(data);
-        }
-
-        private void RecycleSmallBuffer(IEnumerable< TsPacket> data)
+        private void RecycleSmallBuffer(IEnumerable<TsPacket> data)
         {
             //TODO: could we check here for some max size of the bufferPool to not get too big?
-            //lock (bufferPool)
-            {
-                foreach(var b in data)
-                    bufferPool.Push(b);
-            }
+            foreach (var b in data)
+                bufferPool.Push(b);
         }
 
         internal void RecyclePES(PacketizedElementaryStream pes)
@@ -327,7 +279,7 @@ namespace MpegTS
                 //PES?
                 if (pes.IsValid && pes.IsComplete)
                 {
-                    lock (outBuffers)
+                    //lock (outBuffers)
                     {
                         outBuffers.Enqueue(pes);
                         //SampleCount = outBuffers.Count;
