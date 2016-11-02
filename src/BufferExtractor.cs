@@ -190,7 +190,7 @@ namespace MpegTS
             }
         }
 
-        public void ReturnLargeBuffer(byte[] buffer)
+        internal void ReturnLargeBuffer(byte[] buffer)
         {
             lock (largeBufferPool)
             {
@@ -220,6 +220,10 @@ namespace MpegTS
         private Stack<byte[]> bufferPool = new Stack<byte[]>();
         private List<byte[]> largeBufferPool = new List<byte[]>();
 
+        /// <summary>
+        /// returns a pooled buffer of length 188 bytes
+        /// </summary>
+        /// <returns></returns>
         public byte[] GetBuffer()
         {
             byte[] ret = null;
@@ -229,20 +233,40 @@ namespace MpegTS
                 lock (bufferPool)
                 {
                     if (bufferPool.Count() == 0)
-                    {
-                        bufferPool.Push(new byte[188]);
-                    }
-
-                    ret = bufferPool.Pop();
+                        ret = new byte[188];
+                    else
+                        ret = bufferPool.Pop();
                 }
             }
             else
             {
-                return new byte[188];
+                ret = new byte[188];
             }
 
             return ret;
         }
+
+        //public TsPacket GetPacket()
+        //{
+        //    byte[] ret = null;
+
+        //    if (usePool)
+        //    {
+        //        lock (bufferPool)
+        //        {
+        //            if (bufferPool.Count() == 0)
+        //                ret = new byte[188];
+        //            else
+        //                ret = bufferPool.Pop();
+        //        }
+        //    }
+        //    else
+        //    {
+        //        ret = new byte[188];
+        //    }
+
+        //    return ret;
+        //}
 
         /// <summary>
         /// to push new raw data from any source, pass the data in here
@@ -253,21 +277,45 @@ namespace MpegTS
             if (data == null)
             {
                 // reclaim buffer
-                bufferPool.Push(data);
+                //RecycleSmallBuffer(data);
                 return false;
             }
 
-            //assume it's Mpeg TS for now...
-            var ts = new TsPacket(data);
+            return AddPacket(new TsPacket(data));
+        }
 
+        public bool AddPacket(TsPacket ts)
+        {
+            //assume it's Mpeg TS for now...
             if (!ts.IsValid)
             {
                 // reclaim buffer
-                bufferPool.Push(data);
+                if (ts.data.Length == 188) RecycleSmallBuffer(ts.data.data);
+
                 return false;//not valid TS packet!
             }
 
             return AddTsPacket(ts);
+        }
+
+        private void RecycleSmallBuffer(byte[] data)
+        {
+            lock(bufferPool) bufferPool.Push(data);
+        }
+
+        private void RecycleSmallBuffer(IEnumerable< byte[]> data)
+        {
+            //TODO: could we check here for some max size of the bufferPool to not get too big?
+            lock (bufferPool)
+            {
+                foreach(var b in data)
+                    bufferPool.Push(b);
+            }
+        }
+
+        internal void RecyclePES(PacketizedElementaryStream pes)
+        {
+            RecycleSmallBuffer(pes.GetBuffers());
         }
 
         private bool AddTsPacket(TsPacket ts)
@@ -298,8 +346,7 @@ namespace MpegTS
                     }
 
                     long pts = 0;
-                    if (pes.HasPts)
-                        pts = pes.PTS;
+                    if (pes.HasPts) pts = pes.PTS;
 
                     OnSampleReady(SampleCount, pts);
 
@@ -308,7 +355,7 @@ namespace MpegTS
                 else
                     ++bad;
 
-                pes = new MpegTS.PacketizedElementaryStream(ts);//we have the new pes
+                pes = new MpegTS.PacketizedElementaryStream(this, ts);//we have the new pes
 
             }
             else if (pes != null)//we have already found the beginning of the stream and are building a pes
@@ -316,7 +363,7 @@ namespace MpegTS
                 pes.Add(ts);
             }
             else//looking for a start packet
-                pes = new PacketizedElementaryStream(ts);//           
+                pes = new PacketizedElementaryStream(this, ts);//           
 
             return true;
         }
