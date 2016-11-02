@@ -16,14 +16,14 @@
 
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <!--*-->
-    <description>PCL Mpeg TS parsing lib</description>
+    <description>PCL Mpeg TS demuxing lib</description>
     <!--*-->
     <releaseNotes>-Added support for output to stream.  
                   -Improved memory management.
                   -Video samples now Impl IDisposable.
     </releaseNotes>
     <copyright></copyright>
-    <tags>Video Media Mpeg MpegTS H.264 </tags>
+    <tags>Video Media Mpeg MpegTS H.264 Demux</tags>
     <dependencies>      </dependencies>
     
   </metadata>
